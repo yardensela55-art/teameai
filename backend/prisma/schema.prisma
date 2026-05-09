@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  password     String
+  name         String
+  googleId     String?  @unique
+  googleAvatar String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company?
+}
+
+model Company {
+  id          String      @id @default(cuid())
+  name        String
+  industry    String
+  description String      @db.Text
+  vision      String      @db.Text
+  ownerId     String      @unique
+  mode        CompanyMode @default(CEO)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Jira integration
+  jiraAccessToken   String?
+  jiraRefreshToken  String?
+  jiraCloudId       String?
+  jiraWorkspaceName String?
+
+  // Google Calendar integration
+  googleAccessToken  String?
+  googleRefreshToken String?
+  googleEmail        String?
+
+  owner    User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  agents   Agent[]
+  tasks    Task[]
+  meetings Meeting[]
+  members  CompanyMember[]
+}
+
+model CompanyMember {
+  id          String            @id @default(cuid())
+  companyId   String
+  name        String
+  email       String
+  role        CompanyMemberRole
+  status      MemberStatus      @default(INVITED)
+  photoUrl    String?
+  inviteToken String?           @unique
+  createdAt   DateTime          @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tasks   Task[]  @relation("MemberTasks")
+}
+
+model Agent {
+  id                 String   @id @default(cuid())
+  companyId          String
+  name               String
+  role               String
+  department         String
+  bio                String   @db.Text
+  avatarUrl          String
+  systemPrompt       String   @db.Text
+  personality        String   @db.Text
+  expertise          String   @db.Text
+  communicationStyle String   @db.Text
+  age                Int
+  background         String   @db.Text
+  hobby              String
+  standup            Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  tasks        Task[]
+  meetingSlots MeetingSlot[]
+}
+
+model Task {
+  id               String     @id @default(cuid())
+  companyId        String
+  assignedAgentId  String?
+  assignedMemberId String?
+  title            String
+  description      String     @db.Text
+  status           TaskStatus @default(BACKLOG)
+  priority         Priority   @default(MEDIUM)
+  aiOutput         String?    @db.Text
+  jiraIssueKey     String?
+  jiraIssueId      String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedAgent  Agent?         @relation(fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  assignedMember CompanyMember? @relation("MemberTasks", fields: [assignedMemberId], references: [id], onDelete: SetNull)
+}
+
+model Meeting {
+  id            String        @id @default(cuid())
+  companyId     String
+  title         String
+  scheduledAt   DateTime
+  agenda        String[]
+  transcript    String[]
+  memberIds     String[]
+  status        MeetingStatus @default(SCHEDULED)
+  mode          MeetingMode   @default(CHAT)
+  leadAgentId   String?
+  summary       Json?
+  googleEventId String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  slots   MeetingSlot[]
+}
+
+model MeetingSlot {
+  id                 String  @id @default(cuid())
+  meetingId          String
+  agentId            String
+  topic              String
+  presentationOutput String? @db.Text
+  order              Int
+
+  meeting Meeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  agent   Agent   @relation(fields: [agentId], references: [id], onDelete: Cascade)
+}
+
+enum TaskStatus {
+  BACKLOG
+  IN_PROGRESS
+  REVIEW
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MeetingMode {
+  CHAT
+  PRESENTATION
+  VIDEO
+}
+
+enum CompanyMode {
+  CEO
+  FOUNDER
+}
+
+enum CompanyMemberRole {
+  PARTNER
+  EMPLOYEE
+}
+
+enum MemberStatus {
+  INVITED
+  ACTIVE
+}
